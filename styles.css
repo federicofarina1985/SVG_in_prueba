@@ -1,0 +1,147 @@
+/**
+ * ============================================================================
+ * ESTILOS GLOBALES Y DE IMPRESIÓN (STYLES.CSS)
+ * ============================================================================
+ * Define tipografías base, colores de fondo, efectos visuales de tarjetas,
+ * barras de desplazamiento personalizadas y las reglas CSS @media print
+ * para reportes en formato A4 y etiquetas.
+ */
+
+body { 
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+  background-color: #f1f5f9; 
+}
+
+/* Efectos interactivos para las columnas de los racks en el mapa */
+.rack-column { 
+  transition: all 0.2s ease; 
+  position: relative; 
+}
+.rack-column:hover { 
+  transform: translateY(-2px) scale(1.02); 
+  z-index: 40; 
+  box-shadow: 0 8px 16px -4px rgba(15, 23, 42, 0.15); 
+}
+
+/* Estilización personalizada para barras de desplazamiento */
+.custom-scroll::-webkit-scrollbar { 
+  height: 8px; 
+  width: 8px; 
+}
+.custom-scroll::-webkit-scrollbar-track { 
+  background: #e2e8f0; 
+  border-radius: 4px; 
+}
+.custom-scroll::-webkit-scrollbar-thumb { 
+  background: #94a3b8; 
+  border-radius: 4px; 
+}
+
+/* Estilo para elementos filtrados u ocultos al aplicar filtros por rubro */
+.filtered-out { 
+  opacity: 0.15; 
+  filter: grayscale(90%); 
+}
+
+/* Transiciones para las tarjetas de KPIs operativas */
+.kpi-card { 
+  cursor: pointer; 
+  transition: all 0.2s ease; 
+}
+.kpi-card:hover { 
+  transform: translateY(-2px); 
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08); 
+}
+
+/**
+ * ============================================================================
+ * ESTILOS ESPECÍFICOS PARA EL MÓDULO STAGING (IN-OUT)
+ * ============================================================================
+ */
+.staging-dock-card {
+  transition: all 0.2s ease;
+}
+.staging-dock-card:hover {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+.rubro-segment-bar div {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+.rubro-segment-bar div:first-child {
+  border-top-left-radius: 9999px;
+  border-bottom-left-radius: 9999px;
+}
+.rubro-segment-bar div:last-child {
+  border-top-right-radius: 9999px;
+  border-bottom-right-radius: 9999px;
+}
+
+/**
+ * ============================================================================
+ * REGLAS Y CONFIGURACIÓN DE IMPRESIÓN (MEDIA PRINT)
+ * ============================================================================
+ */
+@media print {
+  /* Configuración formal para reportes A4 apaisados */
+  @page { 
+    size: A4 landscape; 
+    margin: 10mm;
+  }
+
+  /* Oculta todos los elementos de la interfaz excepto el área de impresión */
+  body > *:not(#printArea) { display: none !important; }
+  
+  #printArea { 
+    display: block !important; 
+    position: absolute; 
+    left: 0; 
+    top: 0; 
+    width: 100% !important; 
+    color: #000; 
+    background: #fff; 
+  }
+
+  /* Estética y diseño prolijo de la tabla de inventario para impresión */
+  .inv-print-table { 
+    width: 100% !important; 
+    border-collapse: collapse !important; 
+  }
+  
+  .inv-print-table th, .inv-print-table td {
+    border: 1px solid #0f172a !important;
+    padding: 5px 7px !important;
+    font-size: 10px !important;
+    color: #000 !important;
+  }
+  
+  .inv-print-table th { 
+    background-color: #e2e8f0 !important; 
+    -webkit-print-color-adjust: exact; 
+    text-transform: uppercase;
+  }
+
+  /* Forzamos que la columna de SKU resalte en negrita y tipografía legible */
+  .inv-print-table td:nth-child(4) {
+    font-weight: 900 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    color: #0f172a !important;
+  }
+
+  /* Estética visual de la zona de firmas al pie en los reportes */
+  .print-signatures-container {
+    margin-top: 30px;
+    display: flex;
+    justify-content: space-between;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .print-signature-box {
+    width: 45%;
+    text-align: center;
+    border-top: 1px solid #0f172a;
+    padding-top: 6px;
+  }
+}

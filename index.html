@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVGIn — El inventario a simple vista</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- SheetJS / XLSX reader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- JsBarcode para generación de códigos de barra -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+  <style>
+    /* Estilos personalizados para scroll y animaciones */
+    .custom-scroll::-webkit-scrollbar {
+      height: 8px;
+      width: 8px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .kpi-card {
+      transition: all 0.2s ease-in-out;
+      cursor: pointer;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    .filtered-out {
+      opacity: 0.25;
+      filter: grayscale(80%);
+    }
+
+    @keyframes fadeCard {
+      0% { opacity: 0; transform: scale(0.96) translateY(12px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .animate-fade-card {
+      animation: fadeCard 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Estilos exclusivos para impresión */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printArea, #printArea * {
+        visibility: visible;
+      }
+      #printArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+      @page {
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-200 text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+
+  <!-- ÁREA OCULTA PARA DISPARAR IMPRESIONES -->
+  <div id="printArea" class="hidden print:block"></div>
+
+  <!-- NAVEGACIÓN PRINCIPAL / ENCABEZADO -->
+  <header class="bg-slate-900 text-white shadow-lg border-b border-slate-800 sticky top-0 z-40">
+    <div class="max-w-[96%] xl:max-w-[1850px] w-full mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-3">
+      
+      <!-- LOGO Y TÍTULO -->
+      <div class="flex items-center space-x-3">
+        <div class="bg-blue-600 text-white p-2 rounded-xl shadow-md flex items-center justify-center font-black text-xl tracking-tighter">
+          <i class="fa-solid fa-boxes-stacked"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-black tracking-wider text-white flex items-center gap-1">
+            <span>SVGIn</span>
+            <span class="text-xs bg-rose-700 px-1.5 py-0.5 rounded text-white font-bold">®</span>
+          </h1>
+          <p class="text-[10px] text-slate-400 font-semibold tracking-wide">El inventario a simple vista</p>
+        </div>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN PRINCIPALES -->
+      <div class="flex items-center space-x-2">
+        <button onclick="toggleScreensaverManual()" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 px-4 py-2 rounded-lg font-black text-xs md:text-sm flex items-center space-x-2 shadow-lg transition transform hover:scale-105" title="Activar Modo Exposición para Pantallas Grandes">
+          <i class="fa-solid fa-tv text-slate-950"></i>
+          <span>Modo Exposición</span>
+        </button>
+
+        <label class="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-xs md:text-sm flex items-center space-x-2 shadow transition">
+          <i class="fa-solid fa-file-excel"></i>
+          <span>Cargar Informe</span>
+          <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
+        </label>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="max-w-[96%] xl:max-w-[1850px] w-full mx-auto px-3 py-4 space-y-4 flex-grow">
+
+    <!-- SOLAPAS DE NAVEGACIÓN -->
+    <div class="flex flex-wrap items-center gap-2 border-b border-slate-300 pb-2">
+      <button onclick="changeTab('PENETRABLE')" id="tabPenetrable" class="px-4 py-2.5 rounded-lg font-black text-xs md:text-sm flex items-center space-x-2 bg-blue-600 text-white shadow">
+        <i class="fa-solid fa-cubes text-base"></i>
+        <span>ALMACENAMIENTO PENETRABLE</span>
+      </button>
+
+      <button onclick="changeTab('SELECTIVO')" id="tabSelectivo" class="px-4 py-2.5 rounded-lg font-black text-xs md:text-sm flex items-center space-x-2 bg-white text-slate-600 hover:bg-slate-200 border border-slate-200">
+        <i class="fa-solid fa-table-cells text-base text-rose-600"></i>
+        <span>ALMACENAMIENTO SELECTIVO</span>
+      </button>
+
+      <button onclick="changeTab('BLOQUE')" id="tabBloque" class="px-4 py-2.5 rounded-lg font-black text-xs md:text-sm flex items-center space-x-2 bg-white text-slate-600 hover:bg-slate-200 border border-slate-200">
+        <i class="fa-solid fa-square text-base text-rose-600"></i>
+        <span>PISO / BLOQUE</span>
+      </button>
+
+      <button onclick="changeTab('STAGE_IN')" id="tabStageIn" class="px-4 py-2.5 rounded-lg font-black text-xs md:text-sm flex items-center space-x-2 bg-white text-slate-600 hover:bg-slate-200 border border-slate-200">
+        <i class="fa-solid fa-circle-down text-base text-amber-500"></i>
+        <span>STAGE IN (RECEPCIÓN)</span>
+      </button>
+
+      <button onclick="changeTab('STAGE_OUT')" id="tabStageOut" class="px-4 py-2.5 rounded-lg font-black text-xs md:text-sm flex items-center space-x-2 bg-white text-slate-600 hover:bg-slate-200 border border-slate-200">
+        <i class="fa-solid fa-truck-fast text-base text-amber-600"></i>
+        <span>STAGE OUT (DESPACHO)</span>
+      </button>
+
+      <button onclick="changeTab('INVENTARIO')" id="tabInventario" class="px-4 py-2.5 rounded-lg font-black text-xs md:text-sm flex items-center space-x-2 bg-white text-slate-600 hover:bg-slate-200 border border-slate-200">
+        <i class="fa-solid fa-clipboard-list text-base text-rose-600"></i>
+        <span>INVENTARIO GENERAL</span>
+      </button>
+
+      <button onclick="changeTab('VOLUMEN')" id="tabVolumen" class="px-4 py-2.5 rounded-lg font-black text-xs md:text-sm flex items-center space-x-2 bg-white text-slate-600 hover:bg-slate-200 border border-slate-200">
+        <i class="fa-solid fa-cube text-base text-rose-600"></i>
+        <span>VOLUMEN (m³)</span>
+      </button>
+
+      <button onclick="changeTab('CALIDAD')" id="tabCalidad" class="px-4 py-2.5 rounded-lg font-black text-xs md:text-sm flex items-center space-x-2 bg-white text-slate-600 hover:bg-slate-200 border border-slate-200">
+        <i class="fa-solid fa-circle-check text-base text-rose-600"></i>
+        <span>CALIDAD / ESTADOS</span>
+      </button>
+    </div>
+
+    <!-- TARJETAS KPIS SUPERIORES -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div onclick="showKpiModal('pallets')" class="kpi-card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+        <div class="p-3 bg-blue-100 text-blue-600 rounded-lg"><i class="fa-solid fa-boxes-packing text-lg"></i></div>
+        <div>
+          <span class="text-[10px] font-black uppercase text-slate-400 block tracking-wider">TOTAL PALLETS</span>
+          <span id="lblTotalPallets" class="text-lg font-black text-slate-900">0</span>
+        </div>
+      </div>
+
+      <div onclick="showKpiModal('unidades')" class="kpi-card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+        <div class="p-3 bg-rose-100 text-rose-600 rounded-lg"><i class="fa-solid fa-cubes-stacked text-lg"></i></div>
+        <div>
+          <span class="text-[10px] font-black uppercase text-slate-400 block tracking-wider">TOTAL UNIDADES</span>
+          <span id="lblTotalUnidades" class="text-lg font-black text-slate-900">0 u.</span>
+        </div>
+      </div>
+
+      <div onclick="showKpiModal('volumen')" class="kpi-card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+        <div class="p-3 bg-teal-100 text-teal-600 rounded-lg"><i class="fa-solid fa-cube text-lg"></i></div>
+        <div>
+          <span class="text-[10px] font-black uppercase text-slate-400 block tracking-wider">VOLUMEN TOTAL</span>
+          <span id="lblTotalVolumen" class="text-lg font-black text-slate-900">0.0 m³</span>
+        </div>
+      </div>
+
+      <div onclick="showKpiModal('ocupacion')" class="kpi-card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+        <div class="p-3 bg-emerald-100 text-emerald-600 rounded-lg"><i class="fa-solid fa-chart-pie text-lg"></i></div>
+        <div>
+          <span class="text-[10px] font-black uppercase text-slate-400 block tracking-wider">OCUPACIÓN EST.</span>
+          <span id="lblOcupacion" class="text-lg font-black text-slate-900">0%</span>
+        </div>
+      </div>
+
+      <div onclick="showKpiModal('ubicaciones')" class="kpi-card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+        <div class="p-3 bg-indigo-100 text-indigo-600 rounded-lg"><i class="fa-solid fa-warehouse text-lg"></i></div>
+        <div>
+          <span class="text-[10px] font-black uppercase text-slate-400 block tracking-wider">UBICACIONES</span>
+          <span id="lblUbicacionesTotales" class="text-lg font-black text-slate-900">0</span>
+        </div>
+      </div>
+
+      <div onclick="showKpiModal('rubros')" class="kpi-card bg-white p-3.5 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-3">
+        <div class="p-3 bg-amber-100 text-amber-600 rounded-lg"><i class="fa-solid fa-tags text-lg"></i></div>
+        <div>
+          <span class="text-[10px] font-black uppercase text-slate-400 block tracking-wider">RUBROS ACTIVOS</span>
+          <span id="lblRubros" class="text-lg font-black text-slate-900">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEYENDA Y FILTRO DE RUBROS -->
+    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
+      <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+        <i class="fa-solid fa-filter text-blue-600"></i>
+        <span>Filtrar por Rubro</span>
+      </div>
+      <div id="legendContainer" class="flex flex-wrap items-center gap-2 text-xs font-bold"></div>
+    </div>
+
+  <!-- CONTENEDOR DINÁMICO DE MAPAS -->
+    <div id="mapContainer" class="space-y-6">
+      
+      <!-- ESTADO VACÍO / BIENVENIDA ANTES DE CARGAR INFORME -->
+      <div id="welcomePlaceholder" class="flex flex-col items-center justify-center py-20 px-4 text-center">
+        <div class="bg-slate-900 text-white p-6 rounded-3xl shadow-2xl mb-6 border-4 border-blue-600 flex items-center justify-center text-6xl w-28 h-28 transform hover:scale-105 transition duration-300">
+          <i class="fa-solid fa-boxes-stacked"></i>
+        </div>
+        <h2 class="text-4xl font-black text-slate-900 tracking-tight mb-2">SVGIn <span class="text-xs bg-rose-700 px-2 py-0.5 rounded text-white font-bold align-middle">®</span></h2>
+        <p class="text-lg font-bold text-slate-600 max-w-md mx-auto mb-6">El inventario a simple vista. <span class="text-blue-700 block mt-1">Esperamos tu reporte para comenzar.</span></p>
+        
+        <label class="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-black text-sm shadow-xl transition flex items-center space-x-3 transform hover:-translate-y-0.5">
+          <i class="fa-solid fa-file-excel text-lg"></i>
+          <span>Cargar Informe de Stock</span>
+          <input type="file" id="fileInputWelcome" accept=".xlsx, .xls, .csv" class="hidden" onchange="document.getElementById('fileInput').files = this.files; document.getElementById('fileInput').dispatchEvent(new Event('change'));">
+        </label>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- PIE DE PÁGINA -->
+  <footer class="bg-slate-900 text-slate-400 py-3 text-center text-xs border-t border-slate-800">
+    <p class="font-medium">El inventario a simple vista. Cargá tu informe de stock para comenzar.</p>
+  </footer>
+
+  <!-- PANEL LATERAL / DRAWER DE DETALLE -->
+  <div id="drawerOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden transition-opacity" onclick="closeDrawer()"></div>
+  <aside id="drawerPanel" class="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+    <div class="p-4 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
+      <div>
+        <h3 id="drawerTitle" class="font-black text-lg">Detalle de Ubicación</h3>
+        <p id="drawerSubtitle" class="text-xs text-slate-400 font-semibold">Cargando...</p>
+      </div>
+      <button onclick="closeDrawer()" class="text-slate-400 hover:text-white p-2 rounded-lg text-lg"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div id="drawerContent" class="p-4 flex-grow overflow-y-auto custom-scroll space-y-3"></div>
+
+    <div class="p-4 bg-slate-100 border-t border-slate-200 flex justify-between items-center">
+      <select id="selectPaperSize" class="bg-slate-900 text-white text-xs font-bold px-2 py-1 rounded border border-slate-600 focus:outline-none" onchange="updatePrintConfig(this.value)">
+        <option value="zebra_10x17">Etiq. Zebra 10x17</option>
+        <option value="zebra_10x15">Etiq. Zebra 10x15</option>
+        <option value="a4">Hoja A4</option>
+      </select>
+      <button id="btnPrintAllRack" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg font-bold text-xs flex items-center space-x-1.5 shadow transition">
+        <i class="fa-solid fa-print"></i>
+        <span>Imprimir Todo</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MODAL DE PANTALLA COMPLETA DE ZONA -->
+  <div id="fullZoneModalOverlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div onclick="event.stopPropagation()" class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full h-[88vh] flex flex-col overflow-hidden border border-slate-200">
+      <div class="p-4 bg-slate-900 text-white flex justify-between items-center">
+        <h3 id="modalZoneTitle" class="text-lg font-black uppercase tracking-wider">Detalle de Zona</h3>
+        <button onclick="closeFullZoneModal()" class="text-slate-400 hover:text-white text-lg px-2"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="p-4 bg-slate-100 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3 text-xs">
+        <div class="flex items-center space-x-2">
+          <input type="text" id="modalSearchInput" oninput="filterZoneTable()" placeholder="🔍 Buscar SKU, Producto o Pallet..." class="bg-slate-800 text-white text-xs px-3 py-2 rounded-lg border border-slate-700 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex items-center space-x-2 font-bold">
+          <button onclick="setZoneTab('all')" id="btnZoneTabAll" class="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white shadow">Todos (<span id="countModalAll">0</span>)</button>
+          <button onclick="setZoneTab('pallets')" id="btnZoneTabPallets" class="px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-200 border">Pallets (<span id="countModalPallets">0</span>)</button>
+          <button onclick="setZoneTab('unidades')" id="btnZoneTabUnidades" class="px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-200 border">Unidades (<span id="countModalUnidades">0</span>)</button>
+        </div>
+        <div class="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border border-slate-300">
+          <span class="text-slate-500 font-bold">Ordenar:</span>
+          <select id="modalSortSelect" onchange="changeModalSort(this.value)" class="bg-transparent font-black text-slate-800 focus:outline-none">
+            <option value="sku_asc">SKU (A-Z)</option>
+            <option value="sku_desc">SKU (Z-A)</option>
+            <option value="desc_asc">Descripción (A-Z)</option>
+            <option value="desc_desc">Descripción (Z-A)</option>
+            <option value="cant_desc">Cantidad (Mayor a Menor)</option>
+            <option value="cant_asc">Cantidad (Menor a Mayor)</option>
+            <option value="pallet_asc">N° Pallet (Ascendente)</option>
+            <option value="pallet_desc">N° Pallet (Descendente)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="p-4 flex-grow overflow-y-auto custom-scroll">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-900 text-white border-b uppercase text-[10px] tracking-wider select-none">
+              <th onclick="toggleHeaderSort('pallet')" class="p-3 rounded-l-lg cursor-pointer hover:bg-slate-800 transition">Pallet / Tipo <i id="sortIconPallet" class="fa-solid fa-sort ml-1 opacity-60"></i></th>
+              <th onclick="toggleHeaderSort('sku')" class="p-3 cursor-pointer hover:bg-slate-800 transition">SKU <i id="sortIconSku" class="fa-solid fa-sort ml-1 opacity-60"></i></th>
+              <th onclick="toggleHeaderSort('desc')" class="p-3 cursor-pointer hover:bg-slate-800 transition">Descripción <i id="sortIconDesc" class="fa-solid fa-sort ml-1 opacity-60"></i></th>
+              <th class="p-3">Rubro</th>
+              <th onclick="toggleHeaderSort('cant')" class="p-3 text-center cursor-pointer hover:bg-slate-800 transition">Cantidad <i id="sortIconCant" class="fa-solid fa-sort ml-1 opacity-60"></i></th>
+              <th class="p-3 text-right rounded-r-lg">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="modalZoneTableBody" class="divide-y divide-slate-200"></tbody>
+        </table>
+      </div>
+
+      <div class="p-3 bg-slate-100 border-t border-slate-200 text-right">
+        <button onclick="closeFullZoneModal()" class="bg-slate-900 text-white px-5 py-2 rounded-lg font-bold hover:bg-slate-800 transition">Cerrar Ventana</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL KPIS -->
+  <div id="kpiModalOverlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" onclick="closeKpiModal()">
+    <div onclick="event.stopPropagation()" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+      <div class="p-4 bg-slate-900 text-white flex justify-between items-center">
+        <h3 id="kpiModalTitle" class="font-black text-base flex items-center gap-2">KPI Detalle</h3>
+        <button onclick="closeKpiModal()" class="text-slate-400 hover:text-white px-2"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="kpiModalBody" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scroll"></div>
+      <div class="p-4 bg-slate-100 border-t border-slate-200 text-right">
+        <button onclick="closeKpiModal()" class="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-slate-800 transition">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL OVERLAY MODO EXPOSICIÓN DINÁMICO (NUEVA PALETA: AMARILLO, VERDE, BLANCO Y NEGRO) -->
+  <div id="screensaverOverlay" class="fixed inset-0 bg-[#fefce8] backdrop-blur-md z-50 hidden flex flex-col justify-between p-6 lg:p-8 text-slate-900 transition-opacity duration-500" onclick="hideScreensaver()">
+    
+    <!-- ENCABEZADO SUPERIOR -->
+    <div class="flex justify-between items-center px-2 py-2">
+      <div class="flex items-center space-x-3">
+        <div class="bg-amber-400 text-slate-950 p-3 rounded-2xl shadow-md flex items-center justify-center font-black text-2xl border border-amber-500">
+          <i class="fa-solid fa-boxes-stacked"></i>
+        </div>
+        <div>
+          <h2 class="text-2xl font-black tracking-wider text-slate-900 flex items-center gap-2">
+            <span>SVGIn</span>
+            <span class="text-xs bg-emerald-600 text-white px-2.5 py-0.5 rounded-full font-black uppercase">MODO EXPOSICIÓN</span>
+          </h2>
+          <p class="text-xs text-slate-700 font-bold">Presentación Automatizada del Estado Operativo</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <span class="text-xs font-mono font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 px-3.5 py-1.5 rounded-xl flex items-center gap-2 shadow-sm">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping"></span>
+          <span>ROTACIÓN ALEATORIA</span>
+        </span>
+        <button onclick="hideScreensaver()" class="bg-slate-900 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow transition flex items-center gap-2">
+          <i class="fa-solid fa-xmark text-sm"></i>
+          <span>Salir</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- CONTENEDOR ANCHO DEL MODO EXPOSICIÓN -->
+    <div class="max-w-6xl w-full mx-auto my-auto" id="screensaverCardContainer">
+      <!-- Se inyecta dinámicamente -->
+    </div>
+
+    <!-- PIE INFORMATIVO -->
+    <div class="flex justify-between items-center text-xs text-slate-500 font-bold border-t border-slate-900 pt-4">
+      <span>Hacé clic en cualquier lugar o presioná Escape para volver al tablero</span>
+      <span id="screensaverTimerLabel" class="text-amber-400 font-mono font-bold">Siguiente módulo en 7s</span>
+    </div>
+  </div>
+
+  <script src="labels.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
